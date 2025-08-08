@@ -3,10 +3,7 @@ const app = express();
 const cors = require("cors");
 const dotenv = require("dotenv");
 dotenv.config();
-
-const UsersDB = require("./user-service.js");
-const userService = new UsersDB();
-
+const userService = require("./user-service.js");
 const jwt = require("jsonwebtoken");
 const passport = require("passport");
 const passportJWT = require("passport-jwt");
@@ -14,31 +11,33 @@ const passportJWT = require("passport-jwt");
 const HTTP_PORT = process.env.PORT || 8080;
 
 app.use(express.json());
-app.use(cors());
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 
-let ExtractJwt = passportJWT.ExtractJwt;
 let JwtStrategy = passportJWT.Strategy;
+let ExtractJwt = passportJWT.ExtractJwt;
 
 let jwtOptions = {
   jwtFromRequest: ExtractJwt.fromAuthHeaderWithScheme("jwt"),
   secretOrKey: process.env.JWT_SECRET,
 };
 
-let strategy = new JwtStrategy(jwtOptions, function (jwt_payload, next) {
+// JWT Strategy definition
+let strategy = new JwtStrategy(jwtOptions, (jwt_payload, next) => {
   console.log("payload received", jwt_payload);
-
   if (jwt_payload) {
-    next(null, {
-      _id: jwt_payload._id,
-      userName: jwt_payload.userName,
-    });
+    next(null, jwt_payload);
   } else {
     next(null, false);
   }
 });
 
 passport.use(strategy);
-
 app.use(passport.initialize());
 
 app.post("/api/user/register", (req, res) => {
@@ -48,15 +47,9 @@ app.post("/api/user/register", (req, res) => {
       res.json({ message: msg });
     })
     .catch((err) => {
-      console.error("Register error:", err);
-
-      if (typeof err === "string") {
-        res.status(422).json({ message: err });
-      } else if (err.message) {
-        res.status(422).json({ message: err.message });
-      } else {
-        res.status(422).json({ message: "Unknown error" });
-      }
+      // Extract message safely
+      const message = err && err.message ? err.message : String(err);
+      res.status(422).json({ message });
     });
 });
 
@@ -64,13 +57,15 @@ app.post("/api/user/login", (req, res) => {
   userService
     .checkUser(req.body)
     .then((user) => {
-      let payload = {
-        _id: user._id,
+      //Create Payload
+      const payload = {
+        _id: user.id,
         userName: user.userName,
       };
-
-      jwt.sign(payload, jwtOptions.secretOrKey);
-
+      //Sign the token
+      const token = jwt.sign(payload, process.env.JWT_SECRET, {
+        expiresIn: "1h",
+      });
       res.json({ message: "login successful", token: token });
     })
     .catch((msg) => {
@@ -167,17 +162,5 @@ app.delete(
       });
   }
 );
-
-userService
-  .connect()
-  .then(() => {
-    app.listen(HTTP_PORT, () => {
-      console.log("API listening on: " + HTTP_PORT);
-    });
-  })
-  .catch((err) => {
-    console.log("unable to start the server: " + err);
-    process.exit();
-  });
 
 module.exports = app;
