@@ -44,8 +44,16 @@ app.post("/api/user/register", (req, res) => {
     .then((msg) => {
       res.json({ message: msg });
     })
-    .catch((msg) => {
-      res.status(422).json({ message: msg });
+    .catch((err) => {
+      console.error("Register error:", err);
+
+      if (typeof err === "string") {
+        res.status(422).json({ message: err });
+      } else if (err.message) {
+        res.status(422).json({ message: err.message });
+      } else {
+        res.status(422).json({ message: "Unknown error" });
+      }
     });
 });
 
