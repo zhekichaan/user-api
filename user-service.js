@@ -16,19 +16,20 @@ const userSchema = new Schema({
 module.exports = class UsersDB {
   constructor() {
     this.User = null;
+    this.db = null;
   }
 
   connect(connectionString = process.env.MONGO_URL) {
     return new Promise((resolve, reject) => {
-      const db = mongoose.createConnection(connectionString, {
+      this.db = mongoose.createConnection(connectionString, {
         useNewUrlParser: true,
         useUnifiedTopology: true,
       });
 
-      db.on("error", (err) => reject(err));
+      this.db.on("error", (err) => reject(err));
 
-      db.once("open", () => {
-        this.User = db.model("users", userSchema);
+      this.db.once("open", () => {
+        this.User = this.db.model("User", userSchema);
         resolve();
       });
     });
@@ -36,6 +37,8 @@ module.exports = class UsersDB {
 
   registerUser(userData) {
     return new Promise((resolve, reject) => {
+      if (!this.User) return reject("Database not connected");
+
       if (userData.password !== userData.password2) {
         return reject("Passwords do not match");
       }
@@ -67,6 +70,8 @@ module.exports = class UsersDB {
 
   checkUser(userData) {
     return new Promise((resolve, reject) => {
+      if (!this.User) return reject("Database not connected");
+
       this.User.findOne({ userName: userData.userName })
         .then((user) => {
           if (!user) return reject("Unable to find user " + userData.userName);
